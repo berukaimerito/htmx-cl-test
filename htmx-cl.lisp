@@ -27,13 +27,14 @@
     ;; First check if all values are already used
     (maphash (lambda (k v) (when (null v) (setf all-used nil))) *mascots-hash*)
 
-    ;; If all are used, reset the hash table
+    (when (and (= 1 (length *winners*)) all-used)
+      (return-from pick-pairs (list (first *winners*) nil)))
+
     ;; TODO - When all used the winner is length of one just serve the winner endpoint.
     (when all-used
       (mapcar (lambda (el) (setf (gethash el *mascots-hash*) nil)) *winners*)
       (setf *winners* nil))
 
-    ;; Now pick two unused pairs
     ;; TODO - Randomize order
     (loop for (key . value) in (alexandria:hash-table-alist *mascots-hash*)
           unless value
@@ -70,12 +71,16 @@
   (let* ((pairs (pick-pairs))
          (mascot1 (first pairs))
          (mascot2 (second pairs)))
-    (with-html-string
-      (:div :id "buttons" :style "display: flex; justify-content: center; margin-bottom: 10px;"
+
+    (if (not mascot2)
+        (with-html-string
+          (:div (format nil "~a" mascot1)))
+        (with-html-string
+          (:div :id "buttons" :style "display: flex; justify-content: center; margin-bottom: 10px;"
             (:raw (with-button (format nil "select?mascot=~A" mascot1)
-                    "#buttons" (format nil "/images/~A.png" mascot1)))
+                    "#buttons" (format nil "/images/~a.png" mascot1)))
             (:raw (with-button (format nil "select?mascot=~A" mascot2)
-                    "#buttons" (format nil "/images/~A.png" mascot2)))))))
+                    "#buttons" (format nil "/images/~A.png" mascot2))))))))
 
 ; Define a route for the main page
 (define-easy-handler (index :uri "/") ()
