@@ -2,9 +2,46 @@
 
 (in-package #:htmx-cl)
 
+(defvar *project-path* )
+
 (defvar *server* nil "The Hunchentoot server instance")
 
-(defparameter *htmx-test-project* #P"/home/bkc/code/htmx-cl/")
+(defparameter *mascots-hash*
+  (alexandria:alist-hash-table
+   '(("zig" . nil)
+     ("lisp" . nil)
+     ("cpp" . nil)
+     ("rust" . nil)
+     ("java" . nil)
+     ("golang" . nil)
+     ("php" . nil)
+     ("raku" . nil)
+     )
+   :test 'equal))
+
+(defparameter *winners* '())
+
+(defun pick-pairs ()
+  (let ((found '())
+        (all-used t))
+    ;; First check if all values are already used
+    (maphash (lambda (k v) (when (null v) (setf all-used nil))) *mascots-hash*)
+
+    ;; If all are used, reset the hash table
+    ;; TODO - When all used the winner is length of one just serve the winner endpoint.
+    (when all-used
+      (mapcar (lambda (el) (setf (gethash el *mascots-hash*) nil)) *winners*)
+      (setf *winners* nil))
+
+    ;; Now pick two unused pairs
+    ;; TODO - Randomize order
+    (loop for (key . value) in (alexandria:hash-table-alist *mascots-hash*)
+          unless value
+            do (setf (gethash key *mascots-hash*) t)
+               (push key found)
+          when (= (length found) 2)
+            do (return))
+    found))
 
 (defmacro with-html-page (&body body)
   `(with-html-string
@@ -19,35 +56,42 @@
      (:body
       ,@body))))
 
-(defmacro with-button (endpoint target image-src name &optional (color "black") &body extra-content)
+(defmacro with-button (endpoint target image-src &optional name (color "black") &body extra-content)
   `(with-html-string
      (:div
       (:button :hx-post ,endpoint
                :hx-target ,target
-               :style "margin-right: 5px; display: inline-block;"
-               (:img :src ,image-src :width "20" :height "20" :style "margin-right: 5px;")
+               :style "margin-right: 10px; display: inline-block; padding: 15px; min-width: 100px; min-height: 100px;"
+               (:img :src ,image-src :width "100" :height "80" :style "margin-right: 10px;")
                (:font :color ,color ,name))
       ,@extra-content)))
+
+(defun change-pairing ()
+  (let* ((pairs (pick-pairs))
+         (mascot1 (first pairs))
+         (mascot2 (second pairs)))
+    (with-html-string
+      (:div :id "buttons" :style "display: flex; justify-content: center; margin-bottom: 10px;"
+            (:raw (with-button (format nil "select?mascot=~A" mascot1)
+                    "#buttons" (format nil "/images/~A.png" mascot1)))
+            (:raw (with-button (format nil "select?mascot=~A" mascot2)
+                    "#buttons" (format nil "/images/~A.png" mascot2)))))))
 
 ; Define a route for the main page
 (define-easy-handler (index :uri "/") ()
   (setf (content-type*) "text/html")
   (with-html-page
     (:h1 "Question")
-    (:div :style "display: flex; justify-content: flex-start; margin-bottom: 10px;"
-     (:raw (with-button "/btn1" "#result" "/images/lisp.png" "Common Lisp"))
-     (:raw (with-button "/btn2" "#result" "/images/lisp.png" "Common Lisp"))
-     (:raw (with-button "/btn3" "#result" "/images/lisp.png" "Common Lisp"))
-     )
-    (:div :id "result" "Results will appear here")))
+    (:h2 "Which programming mascot is the best?")
+    (:div :id "result" "Results will appear here")
+    (:raw (change-pairing))))
 
-;; Define an HTMX endpoint
-(define-easy-handler (hello :uri "/btn1") ()
-  (setf (content-type*) "text/html")
-  (with-html-string
-    (:div :class "result-message"
-          (:p (:font :color "green" (:br) "Common Lisp via HTMX!"))
-          )))
+
+(defun pick-the-mascot-game (mascot)
+    (push mascot *winners*)
+    (format t "~&Selected: ~A~%" mascot)
+    (change-pairing))
+
 
 ;; Server control functions
 (defun start-server (&optional (port 8080))
@@ -57,11 +101,18 @@
   (setf *server* (make-instance 'easy-acceptor :port port))
   (push (create-folder-dispatcher-and-handler
          "/images/"
-         (merge-pathnames #P"images/" *htmx-test-project*))
+         (merge-pathnames #P"images/"  #P"/home/bkc/code/htmx-cl/"))
         *dispatch-table*)
   (start *server*)
   (format t "~&Server started on port ~D~%" port)
   *server*)
+
+(define-easy-handler (select-mascot :uri "/select") (mascot)
+  (setf (content-type*) "text/html")
+  ;; Store the selection if provided
+  (when mascot
+    (pick-the-mascot-game mascot)
+    ))
 
 (defun stop-server ()
   "Stop the web server"
