@@ -1,9 +1,4 @@
 # htmx-cl
-### _Your Name <your.name@example.com>_
 
-This is a project to do ... something.
-
-## License
-
-Specify license here
+This is a test project for experimenting how Common Lisp and HTMX goes together. Apparently they go together pretty fine.
 
