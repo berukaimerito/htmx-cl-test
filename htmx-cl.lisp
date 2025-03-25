@@ -53,65 +53,8 @@
        (:title "HTMX Common Lisp Demo")
        (:script :src "https://unpkg.com/htmx.org@2.0.4"
                 :crossorigin "anonymous")
-       (:style (:raw "
-    body {
-      margin: 0;
-      padding: 20px;
-      min-height: 100vh;
-      font-family: Arial, sans-serif;
-    }
-
-    h1, h2 {
-      text-align: center;
-    }
-
-    #buttons {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 10px;
-    }
-
-    #result {
-      text-align: center;
-      margin: 20px 0;
-    }
-
-    .confetti-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 1000;
-    }
-
-    .confetti {
-      position: absolute;
-      width: 10px;
-      height: 10px;
-      animation: confetti 5s linear infinite;
-    }
-
-    @keyframes confetti {
-      0% {
-        transform: translateY(0) rotate(0deg);
-        opacity: 1;
-      }
-      100% {
-        transform: translateY(100vh) rotate(720deg);
-        opacity: 0;
-      }
-    }
-
-    .winner {
-      text-align: center;
-      font-size: 32px;
-      font-weight: bold;
-      margin: 40px 0;
-      color: #333;
-    }
-    ")))
+       (:link :rel "stylesheet" :href "/static/style.css")
+       (:script :src "/static/confetti.js"))
       (:body
        ,@body))))
 
@@ -129,55 +72,29 @@
   (let* ((pairs (pick-pairs))
          (mascot1 (first pairs))
          (mascot2 (second pairs)))
-
     (if (not mascot2)
         (with-html-string
-          (:div :class "winner" (format nil "The winner is: ~A!" mascot1)
-               (:img :src (format nil "/images/~a.png" mascot1) :width "100" :height "80" :style "margin-right: 10px;"))
-
+          (:div :class "winner" (format nil "The winner is: ~A!" (string-upcase mascot1))
+                (:img :src (format nil "/images/~a.png" mascot1) :width "100" :height "80" :style "margin-right: 10px;"))
           (:div :class "confetti-container")
-          (:script (:raw "
-function createConfetti() {
-      const confetti = document.createElement('div');
-      confetti.classList.add('confetti');
-      confetti.style.left = Math.random() * 100 + 'vw';
-      confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
-      document.querySelector('.confetti-container').appendChild(confetti);
-
-      confetti.addEventListener('animationend', () => {
-        confetti.remove();
-      });
-
-      setTimeout(createConfetti, 100);
-    }
-
-    // Create many confetti at start
-    for (let i = 0; i < 50; i++) {
-      setTimeout(createConfetti, i * 50);
-    }
-
-    // Continue creating confetti
-    setInterval(createConfetti, 200);
-                 ")))
+          (:script (:raw "startConfetti();")))
         (with-html-string
           (:div :id "buttons" :style "display: flex; justify-content: center; margin-bottom: 10px;"
             (:raw (with-button (format nil "select?mascot=~A" mascot1)
                     "#buttons" (format nil "/images/~a.png" mascot1)))
             (:raw (with-button (format nil "select?mascot=~A" mascot2)
                     "#buttons" (format nil "/images/~A.png" mascot2))))))))
-; Define a route for the main page
+
 (define-easy-handler (index :uri "/") ()
   (setf (content-type*) "text/html")
   (with-html-page
     (:h1 "Question")
     (:h2 "Which programming mascot is the best?")
-    (:div :id "result" "Results will appear here")
     (:raw (change-pairing))))
 
 
 (defun pick-the-mascot-game (mascot)
     (push mascot *winners*)
-    (format t "~&Selected: ~A~%" mascot)
     (change-pairing))
 
 
@@ -190,6 +107,10 @@ function createConfetti() {
   (push (create-folder-dispatcher-and-handler
          "/images/"
          (merge-pathnames #P"images/"  #P"/home/bkc/code/htmx-cl/"))
+        *dispatch-table*)
+  (push (create-folder-dispatcher-and-handler
+         "/static/"
+         (merge-pathnames #P"static/" #P"/home/bkc/code/htmx-cl/"))
         *dispatch-table*)
   (start *server*)
   (format t "~&Server started on port ~D~%" port)
@@ -206,6 +127,8 @@ function createConfetti() {
   "Stop the web server"
   (when *server*
     (stop *server*)
+    (makunbound '*winners*)
+    (makunbound '*mascot-hash*)
     (setf *server* nil)
     (format t "~&Server stopped~%"))
   nil)
