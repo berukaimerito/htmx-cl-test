@@ -7,24 +7,13 @@
 (defvar *server* nil "The Hunchentoot server instance")
 
 (defparameter *mascots-hash*
-  (alexandria:alist-hash-table
-   '(("zig" . nil)
-     ("lisp" . nil)
-     ("cpp" . nil)
-     ("rust" . nil)
-     ("java" . nil)
-     ("golang" . nil)
-     ("php" . nil)
-     ("raku" . nil)
-     )
-   :test 'equal))
+  (make-hash-table))
 
 (defparameter *winners* '())
 
 (defun pick-pairs ()
   (let ((found '())
         (all-used t))
-    ;; First check if all values are already used
     (maphash (lambda (k v) (when (null v) (setf all-used nil))) *mascots-hash*)
 
     (when (and (= 1 (length *winners*)) all-used)
@@ -34,8 +23,7 @@
       (mapcar (lambda (el) (setf (gethash el *mascots-hash*) nil)) *winners*)
       (setf *winners* nil))
 
-    ;; TODO - Randomize order
-    (loop for (key . value) in (alexandria:hash-table-alist *mascots-hash*)
+    (loop for (key . value) in (alexandria:shuffle (alexandria:hash-table-alist *mascots-hash*)) ;; Alexandria Shuffle expects a fresh list and hash-table-alist is creates a fresh one.
           unless value
             do (setf (gethash key *mascots-hash*) t)
                (push key found)
@@ -92,18 +80,15 @@
     (:h2 "Which programming mascot is the best?")
     (:raw (change-pairing))))
 
-
 (defun pick-the-mascot-game (mascot)
     (push mascot *winners*)
     (change-pairing))
 
-
-;; Server control functions
 (defun start-server (&optional (port 8080))
-  "Start the web server on the specified port"
   (when *server*
     (stop-server))
   (setf *server* (make-instance 'easy-acceptor :port port))
+  (mapcar (lambda (el) (setf (gethash el *mascots-hash*) nil)) '("zig" "rust" "golang" "raku" "php" "java" "cpp" "lisp"))
   (push (create-folder-dispatcher-and-handler
          "/images/"
          (merge-pathnames #P"images/"  #P"/home/bkc/code/htmx-cl/"))
@@ -118,13 +103,10 @@
 
 (define-easy-handler (select-mascot :uri "/select") (mascot)
   (setf (content-type*) "text/html")
-  ;; Store the selection if provided
   (when mascot
-    (pick-the-mascot-game mascot)
-    ))
+    (pick-the-mascot-game mascot)))
 
 (defun stop-server ()
-  "Stop the web server"
   (when *server*
     (stop *server*)
     (makunbound '*winners*)
